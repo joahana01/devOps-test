@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  devops-test:
+    build: .
+    container_name: devops-test
+    ports:
+      - "3000:3000"
+    environment:
+      - ENVIRONMENT=production
+      - PORT=3000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - devops-network
+
+networks:
+  devops-network:
+    driver: bridge
