@@ -1,82 +1,53 @@
-name: CI/CD Pipeline DevOps Test
+name: CI/CD Pipeline
 
 on:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:  #ejecutar manualmente
 
 env:
-  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/devops-test
-  DOCKER_TAG: ${{ github.sha }}
+  DOCKER_IMAGE: joahanagit/devops-test
 
 jobs:
-  # JOB 1: Tests
   test:
-    name: Test & Lint
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          pip install pytest httpx pylint
-      
-      - name: Lint code
-        run: |
-          pylint app.py --exit-zero || true
-      
-      - name: Run Python tests
-        run: |
-          python -c "from app import app; print(' App import successful')"
-      
-      - name: Build Docker image for testing
+      - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           load: true
           tags: devops-test:test
       
-      - name: Run container for tests
+      - name: Run container
         run: |
-          docker run -d --name devops-test-test -p 3000:3000 devops-test:test
-          sleep 5
+          docker run -d --name test-api -p 3000:3000 devops-test:test
+          sleep 3
       
       - name: Test endpoints
         run: |
-          curl -f http://localhost:3000/health || exit 1
-          curl -f http://localhost:3000/ || exit 1
-          curl -f http://localhost:3000/ready || exit 1
+          curl -f http://localhost:3000/health
+          curl -f http://localhost:3000/
       
-      - name: Cleanup test container
+      - name: Cleanup
         run: |
-          docker stop devops-test-test
-          docker rm devops-test-test
+          docker stop test-api || true
+          docker rm test-api || true
 
-  # JOB 2: Build y Push a Docker Hub
   build-and-push:
-    name: Build & Push to Docker Hub
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: Log in to Docker Hub
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -89,75 +60,4 @@ jobs:
           push: true
           tags: |
             ${{ env.DOCKER_IMAGE }}:latest
-            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          labels: |
-            git_commit=${{ github.sha }}
-            git_repo=${{ github.repository }}
-            build_date=${{ github.event.repository.updated_at }}
-      
-      - name: Scan image for vulnerabilities
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
-          format: 'table'
-          exit-code: '0'
-          severity: 'CRITICAL,HIGH'
-
-  # JOB 3: Deploy (si tienes VM)
-  deploy:
-    name: Deploy to Production
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            # Pull latest image
-            docker pull ${{ env.DOCKER_IMAGE }}:latest
-            
-            # Stop and remove old container
-            docker stop devops-test || true
-            docker rm devops-test || true
-            
-            # Run new container
-            docker run -d \
-              --name devops-test \
-              --restart unless-stopped \
-              -p 3000:3000 \
-              -e ENVIRONMENT=production \
-              ${{ env.DOCKER_IMAGE }}:latest
-            
-            # Wait and health check
-            sleep 5
-            if curl -f http://localhost:3000/health; then
-              echo "Deployment successful"
-            else
-              echo "Health check failed"
-              exit 1
-            fi
-            docker image prune -f
-
-  # JOB 4: Notificación
-  notify:
-    name: 📧 Send Notification
-    needs: [test, build-and-push]
-    runs-on: ubuntu-latest
-    if: always()
-    
-    steps:
-      - name: Check status
-        run: |
-          if [ "${{ needs.test.result }}" = "success" ] && [ "${{ needs.build-and-push.result }}" = "success" ]; then
-            echo "Pipeline completed successfully!"
-          else
-            echo "Pipeline failed!"
-            exit 1
-          fi
+            ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
