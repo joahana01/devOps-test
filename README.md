@@ -1,3 +1,5 @@
+**Autor:** Johana Rangel Albarran
+
 ##  Descripción
 API desarrollada en **Python con FastAPI** que implementa un pipeline CI/CD completo con GitHub Actions y Docker.
 
@@ -8,6 +10,16 @@ API desarrollada en **Python con FastAPI** que implementa un pipeline CI/CD comp
 - Docker Hub (Registry)
 
 ---
+### Requisitos previos
+- Docker instalado
+- (Opcional) Python 3.11 para pruebas locales
+
+### Opción 1: Usando Docker
+```bash
+
+# Clonar el repositorio
+git clone https://github.com/joahana01/devOps-test.git
+cd devOps-test
 
 ##  Correr localmente
 
@@ -16,18 +28,7 @@ API desarrollada en **Python con FastAPI** que implementa un pipeline CI/CD comp
 # Ejecutar deploy
    ./deploy.sh
 
-### Requisitos previos
-- Docker instalado
-- (Opcional) Python 3.11 para pruebas locales
-
-### Opción 1: Usando Docker
-
-```bash
-# Clonar el repositorio
-git clone https://github.com/joahana01/devOps-test.git
-cd devOps-test
-
-# Construir la imagen
+#Opcion 2: Construir la imagen
 docker build -t devops-test:latest .
 
 # Ejecutar el contenedor
